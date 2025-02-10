@@ -1,0 +1,6 @@
+moviepy==2.0.0.dev2
+imageio==2.25.1
+ffmpeg-python
+streamlit
+pysrt
+whisper
