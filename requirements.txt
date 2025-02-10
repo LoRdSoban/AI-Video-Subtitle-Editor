@@ -4,3 +4,5 @@ ffmpeg-python
 streamlit
 pysrt
 openai-whisper
+torch
+torchaudio
