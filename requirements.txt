@@ -3,4 +3,4 @@ imageio==2.25.1
 ffmpeg-python
 streamlit
 pysrt
-whisper
+openai-whisper
