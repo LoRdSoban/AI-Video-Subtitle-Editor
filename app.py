@@ -91,7 +91,8 @@ def main():
     
         # This was causing the streamlit app to crash, because the community edition of streamlit could not support heavy models
         #model_size = st.sidebar.selectbox("Select Whisper model size", ["base", "small", "medium", "large"])
-        model_size = "small"
+        st.sidebar.markdown("**Note:** Using 'base' Whisper model due to limitations of community cloud.")
+        model_size = "base"
         
         subtitle_font_size = st.sidebar.slider("Subtitle Font Size", min_value=10, max_value=50, value=18)
         subtitle_color = st.sidebar.color_picker("Subtitle Color", "#FFFFFF")
