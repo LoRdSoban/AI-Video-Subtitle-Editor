@@ -60,7 +60,11 @@ def main():
     st.title("AI Video Subtitle Editor")
     
     st.sidebar.title("Settings")
-    model_size = st.sidebar.selectbox("Select Whisper model size", ["base", "small", "medium", "large"])
+    
+    # This was causing the streamlit app to crash, because the community edition of streamlit could not support heavy models
+    #model_size = st.sidebar.selectbox("Select Whisper model size", ["base", "small", "medium", "large"])
+    model_size = "small"
+    
     subtitle_font_size = st.sidebar.slider("Subtitle Font Size", min_value=10, max_value=50, value=18)
     subtitle_color = st.sidebar.color_picker("Subtitle Color", "#FFFFFF")
     subtitle_position = st.sidebar.selectbox("Subtitle Position", ["bottom", "top"])
