@@ -1,42 +1,54 @@
 import streamlit as st
-import tempfile
 import whisper
 import ffmpeg
 import pysrt
 from moviepy.editor import VideoFileClip
+import tempfile
 
+# Load the Whisper model
 @st.cache_resource
-def load_whisper_model():
-    model = whisper.load_model("small")
+def load_whisper_model(model_size):
+    model = whisper.load_model(model_size)  # Use "small", "medium", "large" for better accuracy
     return model
 
 def extract_audio(video_path, audio_path):
     clip = VideoFileClip(video_path)
-    clip.audio.write_audiofile(audio_path, codec='pcm_s16le')
+    clip.audio.write_audiofile(audio_path, codec='pcm_s16le')  # Use a lossless codec
 
-def transcribe_audio(audio_path):
-    model = load_whisper_model()
+def transcribe_audio(audio_path, model_size):
+    model = load_whisper_model(model_size)
     result = model.transcribe(audio_path, task="translate")
     return result["text"], result["segments"]
 
 def generate_srt(segments, srt_path):
     subs = pysrt.SubRipFile()
     for i, seg in enumerate(segments):
+        start_time = seg["start"]
+        end_time = seg["end"]
         subs.append(pysrt.SubRipItem(
-            index=i+1,
-            start=pysrt.SubRipTime(seconds=seg["start"]),
-            end=pysrt.SubRipTime(seconds=seg["end"]),
+            index=i + 1,
+            start=pysrt.SubRipTime(seconds=start_time),
+            end=pysrt.SubRipTime(seconds=end_time),
             text=seg["text"]
         ))
     subs.save(srt_path)
 
-def add_subtitles_with_ffmpeg(video_path, srt_path, output_video_path):
+def time_to_seconds(time_obj):
+    return time_obj.hours * 3600 + time_obj.minutes * 60 + time_obj.seconds + time_obj.milliseconds / 1000.0
+
+def add_subtitles_with_ffmpeg(video_path, srt_path, output_video_path, font_size, color, position):
+    position_filter = "subtitles={}:force_style='FontSize={},PrimaryColour=&H{}&'".format(
+        srt_path, font_size, color.lstrip('#')  # Adding alpha channel
+    )
+    if position == "top":
+        position_filter += ":force_style='Alignment=6'"  # Top alignment
+
     (
         ffmpeg
         .input(video_path)
         .output(
             output_video_path,
-            vf=f"subtitles={srt_path}",
+            vf=position_filter,
             acodec="copy"
         )
         .global_args('-loglevel', 'error')
@@ -44,7 +56,16 @@ def add_subtitles_with_ffmpeg(video_path, srt_path, output_video_path):
     )
 
 def main():
+    st.set_page_config(page_title="AI Video Subtitle Editor", layout="wide")
     st.title("AI Video Subtitle Editor")
+    
+    st.sidebar.title("Settings")
+    model_size = st.sidebar.selectbox("Select Whisper model size", ["base", "small", "medium", "large"])
+    subtitle_font_size = st.sidebar.slider("Subtitle Font Size", min_value=10, max_value=50, value=18)
+    subtitle_color = st.sidebar.color_picker("Subtitle Color", "#FFFFFF")
+    subtitle_position = st.sidebar.selectbox("Subtitle Position", ["bottom", "top"])
+    
+    st.markdown("### Upload Video")
     uploaded_file = st.file_uploader("Upload a video file", type=["mp4", "avi", "mov"])
 
     if uploaded_file:
@@ -54,33 +75,42 @@ def main():
 
         audio_path = video_path.replace(".mp4", ".wav")
         srt_path = video_path.replace(".mp4", ".srt")
-        output_video_path = video_path.replace(".mp4", "_subtitled.mp4")
+        output_video_path = video_path.replace(".mp4", "_ffmpeg_subtitled.mp4")
 
-        st.write("Extracting audio...")
+        st.write("### Step 1: Extracting audio...")
         extract_audio(video_path, audio_path)
         
-        st.write("Transcribing...")
-        text, segments = transcribe_audio(audio_path)
+        st.write("### Step 2: Transcribing audio...")
+        text, segments = transcribe_audio(audio_path, model_size)
         
-        st.write("Generating SRT...")
+        st.write("### Step 3: Generating subtitles...")
         generate_srt(segments, srt_path)
 
         with open(srt_path, "r", encoding="utf-8") as f:
             srt_content = f.read()
 
-        edited_srt_content = st.text_area("Edit Subtitles", srt_content, height=300)
+        st.write("### Step 4: Edit subtitles below:")
+        edited_srt_content = st.text_area("SRT Content", srt_content, height=300)
 
-        if st.button("Save and Preview"):
+        if st.button("Save and Preview Subtitles"):
             with open(srt_path, "w", encoding="utf-8") as f:
                 f.write(edited_srt_content)
 
-            try:
-                add_subtitles_with_ffmpeg(video_path, srt_path, output_video_path)
-                st.video(output_video_path)
-                with open(output_video_path, "rb") as f:
-                    st.download_button("Download", f, "subtitled.mp4")
-            except Exception as e:
-                st.error(f"Error processing video: {str(e)}")
+            st.write("### Step 5: Adding subtitles to video for preview...")
+            add_subtitles_with_ffmpeg(
+                video_path=video_path, 
+                srt_path=srt_path, 
+                output_video_path=output_video_path,
+                font_size=subtitle_font_size,
+                color=subtitle_color,
+                position=subtitle_position
+            )
+
+            st.success("Preview ready!")
+            st.video(output_video_path)
+
+            with open(output_video_path, "rb") as f:
+                st.download_button("Download Subtitled Video", f, file_name="subtitled_video.mp4")
 
 if __name__ == "__main__":
     main()
